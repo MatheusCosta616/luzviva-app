@@ -1,0 +1,11 @@
+.git
+.github
+.env
+.env.*
+infra
+monitoring
+**/__pycache__
+**/tests
+*.tfstate*
+*.tfvars
+README.md

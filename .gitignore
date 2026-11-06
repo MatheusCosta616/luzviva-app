@@ -1,0 +1,15 @@
+# segredos e estado do Terraform: NUNCA no repositório
+.env
+.env.*
+!.env.example
+*.tfstate
+*.tfstate.*
+*.tfvars
+!terraform.tfvars.example
+.terraform/
+crash.log
+*.pem
+*.key
+__pycache__/
+.venv/
+.pytest_cache/

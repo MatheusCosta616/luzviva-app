@@ -1,0 +1,13 @@
+groups:
+  - name: luzviva
+    rules:
+      - alert: TaxaDeErros5xxAlta
+        expr: sum(rate(http_requests_total{status=~"5.."}[1m])) / sum(rate(http_requests_total[1m])) > 0.05
+        for: 2m   # a skill sugere 5m; 2m acelera o print. Ajuste se quiser.
+        labels: {severity: critical}
+        annotations: {summary: "Mais de 5% das requisições com erro 5xx"}
+      - alert: AppForaDoAr
+        expr: up{job="luzviva-app"} == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations: {summary: "Prometheus não consegue ler /metrics do app"}
