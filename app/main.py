@@ -139,7 +139,7 @@ def site():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "versao": app.version}
+    return {"status": "ok", "versao": app.version, "commit": os.getenv("APP_COMMIT", "local")}
 
 
 @app.get("/metrics", include_in_schema=False)

@@ -2,12 +2,52 @@
 set -uo pipefail
 dnf install -y docker
 systemctl enable --now docker
-# Dados do app (arquivos diarios e chamados) ficam no disco da EC2, fora do container.
+
+# Dados do app (relatos, medicoes, chamados) ficam no disco da EC2, fora do container.
 mkdir -p /opt/luzviva/data
 touch /opt/luzviva/app.env
 chown 10001:10001 /opt/luzviva/data
 chmod 600 /opt/luzviva/app.env
-# Primeira subida. Depois, o pipeline atualiza via SSM. Se a imagem ainda nao existe, nao quebra.
-docker run -d --name app --restart unless-stopped -p 80:8000 \
-  -v /opt/luzviva/data:/data --env-file /opt/luzviva/app.env \
-  -e LUZVIVA_DATA_DIR=/data -e ENABLE_FAULT_ENDPOINT=true ${image} || true
+
+# Deploy por pull: baixa ${image} e recria o container so quando a imagem mudou.
+cat > /opt/luzviva/deploy.sh <<'EOF'
+#!/bin/bash
+set -uo pipefail
+IMAGE="${image}"
+docker pull -q "$IMAGE" >/dev/null || exit 0
+NOVA=$(docker image inspect -f '{{.Id}}' "$IMAGE")
+ATUAL=$(docker inspect -f '{{.Image}}' app 2>/dev/null || echo nenhuma)
+if [ "$NOVA" != "$ATUAL" ]; then
+  docker rm -f app >/dev/null 2>&1 || true
+  docker run -d --name app --restart unless-stopped -p 80:8000 \
+    -v /opt/luzviva/data:/data --env-file /opt/luzviva/app.env \
+    -e LUZVIVA_DATA_DIR=/data -e ENABLE_FAULT_ENDPOINT=true "$IMAGE"
+  logger -t luzviva-deploy "nova imagem no ar: $NOVA"
+  docker image prune -f >/dev/null
+fi
+EOF
+chmod 700 /opt/luzviva/deploy.sh
+
+cat > /etc/systemd/system/luzviva-deploy.service <<'EOF'
+[Unit]
+Description=LuzViva: atualiza o container quando ha imagem nova
+After=docker.service
+Requires=docker.service
+[Service]
+Type=oneshot
+ExecStart=/opt/luzviva/deploy.sh
+EOF
+
+cat > /etc/systemd/system/luzviva-deploy.timer <<'EOF'
+[Unit]
+Description=LuzViva: confere imagem nova a cada minuto
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=60s
+[Install]
+WantedBy=timers.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now luzviva-deploy.timer
+/opt/luzviva/deploy.sh

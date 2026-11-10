@@ -8,6 +8,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # ---- runtime ----
 FROM python:3.12-slim
+ARG APP_COMMIT=local
+ENV APP_COMMIT=$APP_COMMIT
 ENV PATH="/opt/venv/bin:$PATH" PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 LUZVIVA_DATA_DIR=/data
 RUN useradd --system --uid 10001 --no-create-home appuser
 RUN mkdir /data && chown appuser /data

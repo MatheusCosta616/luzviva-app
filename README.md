@@ -39,16 +39,17 @@ Global Solution FIAP 2026.2 (CitizenTech), entrega de **Secure DevOps Tools & Cl
 
 ## Arquitetura
 ```
-push/PR → GitHub Actions: testes → Gitleaks → Semgrep → build → Trivy
-                                                          │ (só main)
-                                                          ▼
-                                                  GHCR (imagem pública)
-                                                          │  SSM Run Command (sem porta 22)
-                                                          ▼
-Internet ──HTTP 80──► EC2 (Elastic IP) ── Docker: app FastAPI :8000
-                                              ▲ /metrics
-        Prometheus + Grafana (local, na sua máquina) ┘
+push/PR ─► GitHub Actions: testes → Gitleaks → Semgrep → build → Trivy ─► ci-ok
+                                                       │ (só na main)
+                                                       ▼
+                                       GHCR: ghcr.io/matheuscosta616/luzviva-app:latest
+                                                       ▲  pull a cada 60 s (systemd timer)
+Internet ──HTTP 80──► EC2 t3.micro (Elastic IP, SG só porta 80, IMDSv2, disco cifrado)
+                        └─ Docker: app FastAPI :8000 (usuário não root) + /opt/luzviva/data
+                                       ▲ /metrics
+        Prometheus + Grafana (local, apontando para o MVP publicado)
 ```
+**Deploy por pull, sem chave da AWS no GitHub.** No push na `main`, o pipeline publica a imagem no GHCR com o token efêmero `GITHUB_TOKEN`. A EC2 confere a imagem a cada minuto e troca o container quando ela muda. O job `deploy` confirma o deploy lendo `GET /health`, que devolve o commit em execução. Motivo: as credenciais do AWS Academy Learner Lab expiram a cada sessão, e guardá-las no GitHub exigiria recadastrar a cada deploy. Assim não existe credencial de nuvem de longa duração fora da AWS. A EC2 usa o perfil `LabInstanceProfile` já existente.
 
 ## 1. Rodar local
 ```bash
@@ -59,18 +60,23 @@ docker compose up --build
 O dashboard "LuzViva: 4 métricas de ouro" já vem provisionado.
 
 ## 2. Subir a infra (Learner Lab)
-1. Inicie o lab e copie **AWS Details → AWS CLI** (access key, secret e session token) para `~/.aws/credentials`.
-2. `cd infra && cp terraform.tfvars.example terraform.tfvars` e ajuste `image`.
-3. `terraform init && terraform plan && terraform apply`
-4. Guarde os outputs `app_ip`, `app_url` e `instance_id`.
-5. Confirme o SSM: `aws ssm describe-instance-information` deve listar a instância (pode levar alguns minutos).
+1. Inicie o lab (**Start Lab**) e abra o console da AWS.
+2. Rode o Terraform da pasta `infra/` com as credenciais do lab (na sua máquina, com `~/.aws/credentials`, ou no AWS CloudShell):
+   ```bash
+   cd infra
+   cp terraform.tfvars.example terraform.tfvars   # image = "ghcr.io/matheuscosta616/luzviva-app:latest"
+   terraform init && terraform plan && terraform apply
+   ```
+3. Guarde os outputs `app_url` e `instance_id`. `terraform.tfstate` e `terraform.tfvars` ficam fora do Git (`.gitignore`).
 
 ## 3. Configurar o GitHub
-- **Secrets:** `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `INSTANCE_ID`.
-- **Variables:** `AWS_REGION` (ex.: `us-east-1`), `APP_URL` (`http://<app_ip>`).
-- **Learner Lab:** as 3 credenciais expiram quando a sessão acaba. Antes de cada deploy, reinicie o lab e atualize os 3 secrets.
-- Depois do primeiro push na `main`, torne o pacote do GHCR **público** (Perfil → Packages → pacote → Package settings → Change visibility). Sem isso a EC2 não consegue baixar a imagem.
-- Recomendado: proteger a `main` (ruleset exigindo o check `ci-ok`).
+- **Variable** (Settings → Secrets and variables → Actions → Variables): `APP_URL` = `http://<app_ip>`.
+- **Environment** `production` (Settings → Environments), usado pelo job `deploy`.
+- **Secrets:** o pipeline usa só o `GITHUB_TOKEN` efêmero que o GitHub injeta a cada execução. Nenhuma chave da AWS é cadastrada.
+- O pacote no GHCR precisa ser **público** (Perfil → Packages → luzviva-app → Package settings → Change visibility) para a EC2 baixar sem credencial.
+- Recomendado: ruleset na `main` exigindo o check `ci-ok`.
+
+**Learner Lab:** quando a sessão do lab termina, a AWS para a instância, e ela volta no próximo **Start Lab** com o mesmo Elastic IP. Para a URL ficar no ar durante a correção, inicie o lab antes de entregar e nos dias de correção.
 
 ## 4. Evidências para o PDF (14 pontos)
 | Bloco | Print / prova |
@@ -81,7 +87,7 @@ O dashboard "LuzViva: 4 métricas de ouro" já vem provisionado.
 | Observabilidade (3,0) | Dashboard com as 4 métricas; alerta `TaxaDeErros5xxAlta` em **Firing** (Prometheus → Alerts) |
 | Documentação (2,0) | Diagrama acima, responsabilidade compartilhada, LGPD, custo, este README |
 
-**Run barrado:** em uma branch de teste, commite um arquivo com um segredo falso no formato de chave AWS e faça push. O Gitleaks varre os commits do push, então depois de dar `git revert` e push de novo o run fica verde. Teste antes se o padrão que você usou dispara a regra (alguns exemplos conhecidos são ignorados). Em segredo real, apagar não basta: é preciso revogar.
+**Run barrado:** em uma branch de teste, commite um arquivo com um segredo falso no formato de chave AWS e faça push.  Teste antes se o padrão que você usou dispara a regra (alguns exemplos conhecidos são ignorados). Em segredo real, apagar não basta: é preciso revogar.
 
 **Alerta disparado:** `PROM_CONFIG=prometheus.remote.yml` (troque o IP no arquivo), `docker compose up`, depois gere erros: `for i in $(seq 1 200); do curl -s http://<app_ip>/erro > /dev/null; sleep 0.5; done`. Em Prometheus → Alerts, a regra passa a Pending e depois Firing.
 

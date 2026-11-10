@@ -1,2 +1,2 @@
 # copie para terraform.tfvars (ignorado pelo Git)
-image = "ghcr.io/SEU_USUARIO/luzviva-app:latest"
+image = "ghcr.io/matheuscosta616/luzviva-app:latest"
