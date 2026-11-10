@@ -1,6 +1,6 @@
 variable "region" {
   type        = string
-  default     = "us-east-1" # Learner Lab costuma liberar so us-east-1 / us-west-2 (confira no seu lab)
+  default     = "us-east-1"
   description = "Regiao AWS"
 }
 
@@ -10,8 +10,9 @@ variable "instance_type" {
 }
 
 variable "instance_profile_name" {
-  type    = string
-  default = "LabInstanceProfile" # perfil pre-existente do Learner Lab
+  type        = string
+  default     = ""
+  description = "Perfil IAM opcional da EC2 (no Learner Lab: LabInstanceProfile)"
 }
 
 variable "image" {

@@ -61,8 +61,9 @@ resource "aws_instance" "app" {
   instance_type          = var.instance_type
   subnet_id              = data.aws_subnets.default.ids[0]
   vpc_security_group_ids = [aws_security_group.app.id]
-  # Learner Lab nao deixa criar roles: usa o perfil que ja existe.
-  iam_instance_profile = var.instance_profile_name
+  # Opcional: o deploy por pull nao precisa de permissao na AWS.
+  # No Learner Lab, informe "LabInstanceProfile".
+  iam_instance_profile = var.instance_profile_name == "" ? null : var.instance_profile_name
 
   metadata_options {
     http_tokens = "required" # IMDSv2
