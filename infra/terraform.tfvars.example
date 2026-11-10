@@ -1,2 +1,3 @@
 # copie para terraform.tfvars (ignorado pelo Git)
 image = "ghcr.io/matheuscosta616/luzviva-app:latest"
+budget_email = "voce@exemplo.com"

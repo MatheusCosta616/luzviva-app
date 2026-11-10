@@ -1,6 +1,6 @@
 variable "region" {
   type        = string
-  default     = "us-east-1"
+  default     = "sa-east-1" # Sao Paulo: dados pessoais ficam no Brasil (LGPD)
   description = "Regiao AWS"
 }
 
@@ -18,4 +18,16 @@ variable "instance_profile_name" {
 variable "image" {
   type        = string
   description = "Imagem do app no GHCR, ex.: ghcr.io/usuario/luzviva-app:latest (minusculo)"
+}
+
+variable "budget_limit_usd" {
+  type        = number
+  default     = 20
+  description = "Teto mensal (USD) do alerta de orcamento"
+}
+
+variable "budget_email" {
+  type        = string
+  default     = ""
+  description = "E-mail que recebe o alerta de orcamento (vazio = sem alerta)"
 }

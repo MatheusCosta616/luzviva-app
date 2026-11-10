@@ -84,3 +84,29 @@ resource "aws_eip" "app" {
   instance = aws_instance.app.id
   domain   = "vpc"
 }
+
+# Alerta de custo: avisa em 80% do teto previsto e em 100% do gasto real.
+resource "aws_budgets_budget" "mensal" {
+  count        = var.budget_email == "" ? 0 : 1
+  name         = "luzviva-mensal"
+  budget_type  = "COST"
+  limit_amount = tostring(var.budget_limit_usd)
+  limit_unit   = "USD"
+  time_unit    = "MONTHLY"
+
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 80
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "FORECASTED"
+    subscriber_email_addresses = [var.budget_email]
+  }
+
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 100
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "ACTUAL"
+    subscriber_email_addresses = [var.budget_email]
+  }
+}
