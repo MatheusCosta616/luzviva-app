@@ -44,6 +44,7 @@ jobs:
           PR_HEAD: ${{ github.event.pull_request.head.sha }}
           PUSH_BEFORE: ${{ github.event.before }}
           SHA: ${{ github.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
           if [ "$EVENT" = "pull_request" ]; then
@@ -51,7 +52,8 @@ jobs:
           elif [ "$PUSH_BEFORE" != "0000000000000000000000000000000000000000" ]; then
             RANGE="$PUSH_BEFORE..$SHA"
           else
-            RANGE=""   # primeiro push da branch: varre tudo
+            # primeiro push da branch: so os commits que ainda nao estao na main
+            RANGE="origin/${DEFAULT_BRANCH}..$SHA"
           fi
           echo "Intervalo varrido: ${RANGE:-historico completo}"
           docker run --rm -v "$PWD:/repo" \
