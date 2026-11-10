@@ -2,6 +2,12 @@
 set -uo pipefail
 dnf install -y docker
 systemctl enable --now docker
+# Dados do app (arquivos diarios e chamados) ficam no disco da EC2, fora do container.
+mkdir -p /opt/luzviva/data
+touch /opt/luzviva/app.env
+chown 10001:10001 /opt/luzviva/data
+chmod 600 /opt/luzviva/app.env
 # Primeira subida. Depois, o pipeline atualiza via SSM. Se a imagem ainda nao existe, nao quebra.
 docker run -d --name app --restart unless-stopped -p 80:8000 \
-  -e ENABLE_FAULT_ENDPOINT=true ${image} || true
+  -v /opt/luzviva/data:/data --env-file /opt/luzviva/app.env \
+  -e LUZVIVA_DATA_DIR=/data -e ENABLE_FAULT_ENDPOINT=true ${image} || true

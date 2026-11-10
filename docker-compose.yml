@@ -4,6 +4,9 @@ services:
     build: .
     environment:
       ENABLE_FAULT_ENDPOINT: "true"   # só para demo do alerta
+      LUZVIVA_DATA_DIR: /data
+    volumes:
+      - luzviva-data:/data
     ports:
       - "8000:8000"
 
@@ -29,3 +32,6 @@ services:
       - "127.0.0.1:3000:3000"
     depends_on:
       - prometheus
+
+volumes:
+  luzviva-data:

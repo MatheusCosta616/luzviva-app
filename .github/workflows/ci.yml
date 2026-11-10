@@ -145,7 +145,7 @@ jobs:
           CMD_ID=$(aws ssm send-command \
             --document-name AWS-RunShellScript \
             --instance-ids "$INSTANCE_ID" \
-            --parameters "commands=[\"docker pull $IMAGE\",\"docker rm -f app || true\",\"docker run -d --name app --restart unless-stopped -p 80:8000 -e ENABLE_FAULT_ENDPOINT=true $IMAGE\"]" \
+            --parameters "commands=[\"docker pull $IMAGE\",\"docker rm -f app || true\",\"docker run -d --name app --restart unless-stopped -p 80:8000 -v /opt/luzviva/data:/data --env-file /opt/luzviva/app.env -e LUZVIVA_DATA_DIR=/data -e ENABLE_FAULT_ENDPOINT=true $IMAGE\"]" \
             --query Command.CommandId --output text)
           aws ssm wait command-executed --command-id "$CMD_ID" --instance-id "$INSTANCE_ID"
       - name: Conferir /health

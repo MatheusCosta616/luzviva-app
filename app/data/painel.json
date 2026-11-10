@@ -1,0 +1,38 @@
+{
+ "view": "vw_mvp_painel_subprefeitura",
+ "gerado_em": "2026-11-10T22:00:00",
+ "linhas": 3,
+ "simulado": true,
+ "dados": [
+  {
+   "subprefeitura": "Se",
+   "area_piloto": "SE",
+   "luminarias_monitoradas": 16,
+   "apagadas": 0,
+   "insuficientes": 5,
+   "ok": 11,
+   "pct_com_falha": 31.2,
+   "horas_luminaria_no_escuro_noite": 0
+  },
+  {
+   "subprefeitura": "Pinheiros",
+   "area_piloto": "PINHEIROS",
+   "luminarias_monitoradas": 16,
+   "apagadas": 6,
+   "insuficientes": 4,
+   "ok": 6,
+   "pct_com_falha": 62.5,
+   "horas_luminaria_no_escuro_noite": 72
+  },
+  {
+   "subprefeitura": "Campo Limpo",
+   "area_piloto": "CAMPO LIMPO",
+   "luminarias_monitoradas": 16,
+   "apagadas": 3,
+   "insuficientes": 4,
+   "ok": 9,
+   "pct_com_falha": 43.8,
+   "horas_luminaria_no_escuro_noite": 36
+  }
+ ]
+}
