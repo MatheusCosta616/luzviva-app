@@ -8,5 +8,5 @@ output "app_url" {
 
 output "instance_id" {
   value       = aws_instance.app.id
-  description = "Vai para o secret INSTANCE_ID do GitHub"
+  description = "ID da EC2 (para logs e diagnostico)"
 }

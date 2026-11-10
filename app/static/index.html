@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LuzViva: iluminação pública</title>
+<meta name="description" content="LuzViva encontra luminárias apagadas antes da reclamação e diz ao gestor o que consertar primeiro.">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<a class="pular" href="#conteudo">Pular para o conteúdo</a>
+<header class="topo">
+  <div class="marca"><span class="lampada" aria-hidden="true"></span><strong>LuzViva</strong></div>
+  <p class="slogan">Encontra a luminária apagada antes da reclamação e diz o que consertar primeiro.</p>
+  <span class="selo" title="Dados gerados por scripts/gerar_dados.py">Dados simulados</span>
+</header>
+
+<nav class="abas" role="tablist" aria-label="Seções">
+  <button role="tab" aria-selected="true" aria-controls="aba-mapa" id="t-mapa">Mapa</button>
+  <button role="tab" aria-selected="false" aria-controls="aba-fila" id="t-fila">Fila</button>
+  <button role="tab" aria-selected="false" aria-controls="aba-painel" id="t-painel">Painel</button>
+  <button role="tab" aria-selected="false" aria-controls="aba-chamados" id="t-chamados">Chamados</button>
+  <button role="tab" aria-selected="false" aria-controls="aba-reportar" id="t-reportar">Reportar</button>
+  <button role="tab" aria-selected="false" aria-controls="aba-assistente" id="t-assistente">Assistente</button>
+</nav>
+
+<main id="conteudo">
+  <section id="aba-mapa" role="tabpanel" aria-labelledby="t-mapa">
+    <div class="legenda" aria-label="Legenda">
+      <span><i class="pt ok"></i>Acesa</span>
+      <span><i class="pt insuficiente"></i>Insuficiente (&lt; 5 lux)</span>
+      <span><i class="pt apagada"></i>Apagada (&lt; 1 lux)</span>
+    </div>
+    <div id="mapa" role="region" aria-label="Mapa das luminárias monitoradas"></div>
+  </section>
+
+  <section id="aba-fila" role="tabpanel" aria-labelledby="t-fila" hidden>
+    <h2>Fila de manutenção</h2>
+    <p class="nota">Ordenada por prioridade (0 a 100): situação medida pelo robô, relatos de cidadãos e confiança da visão.</p>
+    <div class="tabela-rolagem"><table id="tabela-fila">
+      <thead><tr><th>#</th><th>Placa</th><th>Endereço</th><th>Situação</th><th>Lux</th><th>Relatos</th><th>Prioridade</th><th>Ação</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </section>
+
+  <section id="aba-painel" role="tabpanel" aria-labelledby="t-painel" hidden>
+    <h2>Painel por subprefeitura</h2>
+    <div id="cards" class="cards"></div>
+  </section>
+
+  <section id="aba-chamados" role="tabpanel" aria-labelledby="t-chamados" hidden>
+    <h2>Chamados</h2>
+    <p class="nota">Abertos pela fila (ou pelo robô de RPA). Uma placa nunca tem dois chamados abertos.</p>
+    <div class="tabela-rolagem"><table id="tabela-chamados">
+      <thead><tr><th>Chamado</th><th>Placa</th><th>Prioridade</th><th>Status</th><th>Aberto em</th><th>Atualizar</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <p id="sem-chamados" class="nota">Nenhum chamado ainda. Abra um pela aba Fila.</p>
+  </section>
+
+  <section id="aba-reportar" role="tabpanel" aria-labelledby="t-reportar" hidden>
+    <h2>Reportar um poste</h2>
+    <form id="form-ocorrencia" class="form">
+      <label>Placa pintada no poste (IP + 7 dígitos)
+        <input name="placa" required pattern="IP\d{7}" placeholder="IP0712345" autocomplete="off"></label>
+      <label>Área
+        <select name="area_piloto"><option value="SE">Sé</option><option value="PINHEIROS">Pinheiros</option><option value="CAMPO LIMPO">Campo Limpo</option></select></label>
+      <label>O que você viu
+        <select name="categoria">
+          <option value="luminaria_apagada">Luminária apagada</option>
+          <option value="luminaria_piscando">Luminária piscando</option>
+          <option value="luminaria_acesa_de_dia">Acesa de dia</option>
+          <option value="poste_danificado">Poste danificado</option>
+        </select></label>
+      <button type="submit">Enviar relato</button>
+      <p class="privacidade">Não pedimos nome, e-mail nem telefone. Neste MVP a foto não é enviada: guardamos só placa, área, categoria e horário.</p>
+      <p id="retorno-ocorrencia" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+
+  <section id="aba-assistente" role="tabpanel" aria-labelledby="t-assistente" hidden>
+    <h2>Assistente do gestor</h2>
+    <form id="form-assistente" class="form">
+      <label>Pergunta
+        <input name="pergunta" required minlength="3" placeholder="Por que a IP07xxxxx está na frente?"></label>
+      <button type="submit">Perguntar</button>
+    </form>
+    <div id="resposta" class="resposta" role="status" aria-live="polite"></div>
+  </section>
+</main>
+
+<footer class="rodape">LuzViva · GS FIAP 2026.2 · CitizenTech · <a href="/docs">API</a> · <a href="/health">status</a></footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>
