@@ -18,6 +18,11 @@ docker pull -q "$IMAGE" >/dev/null || exit 0
 NOVA=$(docker image inspect -f '{{.Id}}' "$IMAGE")
 ATUAL=$(docker inspect -f '{{.Image}}' app 2>/dev/null || echo nenhuma)
 if [ "$NOVA" != "$ATUAL" ]; then
+  # Token de deploy lido do SSM (cifrado) a cada troca de container; nunca fica na imagem.
+  TOKEN=$(aws ssm get-parameter --region "${region}" --name "${token_param}" \
+    --with-decryption --query Parameter.Value --output text 2>/dev/null || true)
+  umask 077
+  printf 'LUZVIVA_DEPLOY_TOKEN=%s\n' "$TOKEN" > /opt/luzviva/app.env
   docker rm -f app >/dev/null 2>&1 || true
   docker run -d --name app --restart unless-stopped -p 80:8000 \
     -v /opt/luzviva/data:/data --env-file /opt/luzviva/app.env \

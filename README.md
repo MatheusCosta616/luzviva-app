@@ -21,7 +21,7 @@ Global Solution FIAP 2026.2 (CitizenTech), entrega de **Secure DevOps Tools & Cl
 | Arquitetura | App FastAPI em container numa EC2 criada por Terraform; pipeline GitHub Actions com Gitleaks, Semgrep e Trivy; Prometheus e Grafana |
 | Fontes de dados | Neste MVP: dados simulados no formato dos contratos do grupo (`scripts/gerar_dados.py`). No produto: cadastro ILUME/GeoSampa, SP156, Open-Meteo, medições do robô, ocorrências do app e chamados do RPA |
 | Modelos de IA | No produto: YOLO11 (visão), LLM local com RAG (assistente), TinyML no ESP32. Neste MVP o assistente roda em modo simulado: responde citando a fila ou diz "não consta" |
-| URL do MVP | `http://<app_ip>` (preencher após o `terraform apply`) |
+| URL do MVP | http://52.67.217.30 (AWS sa-east-1, São Paulo) |
 | Repositório | https://github.com/MatheusCosta616/luzviva-app |
 | Indicadores de impacto | % de falhas achadas antes de relato; tempo até o reparo; horas-luminária no escuro por noite |
 | ODS | 11 (meta 11.7), 9 e 10 |
@@ -72,7 +72,7 @@ O dashboard "LuzViva: 4 métricas de ouro" já vem provisionado.
 ## 3. Configurar o GitHub
 - **Variable** (Settings → Secrets and variables → Actions → Variables): `APP_URL` = `http://<app_ip>`.
 - **Environment** `production` (Settings → Environments), usado pelo job `deploy`.
-- **Secrets:** o pipeline usa só o `GITHUB_TOKEN` efêmero que o GitHub injeta a cada execução. Nenhuma chave da AWS é cadastrada.
+- **Secrets:** `DEPLOY_TOKEN`, gerado pelo Terraform (`terraform output -raw deploy_token`) e guardado cifrado no SSM Parameter Store. O job `deploy` usa esse token para consultar `/internal/deploy` e confirmar o commit no ar. O `GITHUB_TOKEN` efêmero publica a imagem no GHCR. Nenhuma chave da AWS é cadastrada no GitHub.
 - O pacote no GHCR precisa ser **público** (Perfil → Packages → luzviva-app → Package settings → Change visibility) para a EC2 baixar sem credencial.
 - Recomendado: ruleset na `main` exigindo o check `ci-ok`.
 

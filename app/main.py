@@ -4,6 +4,7 @@ Rotas seguem a secao "API do app" do roteiro. Leitura (mapa, fila, painel) vem d
 JSON gerados por scripts/gerar_dados.py. Escrita (medicoes, ocorrencias, chamados)
 grava arquivos diarios em LUZVIVA_DATA_DIR, que fica fora do container.
 """
+import hmac
 import json
 import os
 import threading
@@ -13,7 +14,7 @@ from pathlib import Path
 from typing import Literal, Optional
 from zoneinfo import ZoneInfo
 
-from fastapi import FastAPI, HTTPException, Query, Request, Response
+from fastapi import FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
@@ -139,7 +140,19 @@ def site():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "versao": app.version, "commit": os.getenv("APP_COMMIT", "local")}
+    return {"status": "ok", "versao": app.version}
+
+
+@app.get("/internal/deploy", include_in_schema=False)
+def deploy_info(x_deploy_token: Optional[str] = Header(default=None)):
+    """Commit em execucao, so para o pipeline (token vindo do GitHub Secrets / SSM).
+    Sem token configurado no servidor, a rota nao existe."""
+    esperado = os.getenv("LUZVIVA_DEPLOY_TOKEN", "")
+    if not esperado:
+        raise HTTPException(status_code=404)
+    if not x_deploy_token or not hmac.compare_digest(x_deploy_token, esperado):
+        raise HTTPException(status_code=401, detail="token invalido")
+    return {"commit": os.getenv("APP_COMMIT", "local")}
 
 
 @app.get("/metrics", include_in_schema=False)

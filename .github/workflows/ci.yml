@@ -3,7 +3,6 @@ name: ci
 on:
   pull_request:
   push:
-    branches: [main]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -45,6 +44,7 @@ jobs:
           PR_HEAD: ${{ github.event.pull_request.head.sha }}
           PUSH_BEFORE: ${{ github.event.before }}
           SHA: ${{ github.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
           if [ "$EVENT" = "pull_request" ]; then
@@ -52,7 +52,8 @@ jobs:
           elif [ "$PUSH_BEFORE" != "0000000000000000000000000000000000000000" ]; then
             RANGE="$PUSH_BEFORE..$SHA"
           else
-            RANGE=""   # primeiro push da branch: varre tudo
+            # primeiro push da branch: so os commits que ainda nao estao na main
+            RANGE="origin/${DEFAULT_BRANCH}..$SHA"
           fi
           echo "Intervalo varrido: ${RANGE:-historico completo}"
           docker run --rm -v "$PWD:/repo" \
@@ -91,6 +92,14 @@ jobs:
           IMAGE="ghcr.io/${REPO,,}"
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
           docker build --build-arg APP_COMMIT="$SHA" -t "$IMAGE:$SHA" -t "$IMAGE:latest" .
+      - name: Conferir usuario nao root na imagem
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint id "$IMAGE:$SHA" | tee /tmp/id.txt
+          grep -q "uid=10001(appuser)" /tmp/id.txt || { echo "::error::container roda como root"; exit 1; }
+          echo "Usuario do container: $(docker image inspect -f '{{.Config.User}}' "$IMAGE:$SHA")"
       - name: Trivy na imagem (barra CRITICAL/HIGH com correcao disponivel)
         env:
           SHA: ${{ github.sha }}
@@ -108,9 +117,35 @@ jobs:
           docker push "$IMAGE:$SHA"
           docker push "$IMAGE:latest"
 
+  compose:
+    # Prova que a stack inteira sobe com docker compose: app + Prometheus + Grafana.
+    needs: [test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Subir a stack
+        run: |
+          set -euo pipefail
+          export GRAFANA_PASSWORD="$(openssl rand -hex 16)"
+          docker compose up -d --build
+          docker compose ps
+      - name: Conferir app, Prometheus e Grafana
+        run: |
+          set -euo pipefail
+          curl -fsS --retry 10 --retry-delay 3 --retry-all-errors http://localhost:8000/health; echo
+          curl -fsS --retry 10 --retry-delay 3 --retry-all-errors http://localhost:9090/-/ready; echo
+          curl -fsS --retry 10 --retry-delay 3 --retry-all-errors http://localhost:3000/api/health; echo
+          sleep 20
+          curl -fsS "http://localhost:9090/api/v1/query?query=up" | tee /tmp/up.json; echo
+          grep -q '"value":\[[0-9.]*,"1"\]' /tmp/up.json
+      - name: Derrubar a stack
+        if: always()
+        run: GRAFANA_PASSWORD=x docker compose down -v
+
   ci-ok:
     if: always()
-    needs: [test, gitleaks, semgrep, image]
+    needs: [test, gitleaks, semgrep, image, compose]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
@@ -123,8 +158,9 @@ jobs:
 
   deploy:
     # Deploy por pull: a EC2 confere o GHCR a cada minuto e troca o container quando a
-    # imagem :latest muda. Nenhuma credencial da AWS fica no GitHub. Este job so confirma
-    # que a versao deste commit entrou no ar.
+    # imagem :latest muda. Nenhuma credencial da AWS fica no GitHub. Este job confirma,
+    # com o DEPLOY_TOKEN (GitHub Secrets; na AWS fica no SSM Parameter Store), que o
+    # commit entrou no ar.
     needs: [ci-ok]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -132,13 +168,16 @@ jobs:
     environment: production
     env:
       APP_URL: ${{ vars.APP_URL }}
+      DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
       SHA: ${{ github.sha }}
     steps:
       - name: Esperar a EC2 publicar este commit
         run: |
           set -uo pipefail
+          if [ -z "$DEPLOY_TOKEN" ]; then echo "::error::secret DEPLOY_TOKEN nao configurado"; exit 1; fi
           for i in $(seq 1 40); do
-            ATUAL=$(curl -fsS --max-time 5 "$APP_URL/health" | python3 -c "import sys,json; print(json.load(sys.stdin).get('commit',''))" || true)
+            ATUAL=$(curl -fsS --max-time 5 -H "X-Deploy-Token: $DEPLOY_TOKEN" "$APP_URL/internal/deploy" \
+              | python3 -c "import sys,json; print(json.load(sys.stdin).get('commit',''))" || true)
             echo "tentativa $i: no ar = ${ATUAL:-indisponivel}"
             if [ "$ATUAL" = "$SHA" ]; then echo "Deploy confirmado: $SHA"; exit 0; fi
             sleep 15

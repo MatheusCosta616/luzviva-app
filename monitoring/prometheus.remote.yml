@@ -1,4 +1,5 @@
-# Aponta o Prometheus local para o MVP publicado. Troque o IP pelo output app_ip do Terraform.
+# Prometheus local lendo o MVP publicado na AWS (sa-east-1).
+# Uso: no .env, PROM_CONFIG=prometheus.remote.yml; depois: docker compose up prometheus grafana
 global:
   scrape_interval: 15s
 rule_files:
@@ -7,4 +8,6 @@ scrape_configs:
   - job_name: luzviva-app
     metrics_path: /metrics
     static_configs:
-      - targets: ["0.0.0.0:80"]   # TROCAR: <IP_ELASTICO>:80
+      - targets: ["52.67.217.30:80"]
+        labels:
+          ambiente: producao-aws

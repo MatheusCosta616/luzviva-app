@@ -62,3 +62,14 @@ def test_assistente_responde_com_fonte_ou_recusa():
 def test_export_bloqueia_entrada_invalida():
     assert client.get("/api/export/ocorrencias", params={"data": "../../etc"}).status_code == 422
     assert client.get("/api/export/senhas", params={"data": "2026-11-10"}).status_code == 422
+
+
+def test_deploy_info_exige_token(monkeypatch):
+    assert client.get("/internal/deploy").status_code == 404
+    monkeypatch.setenv("LUZVIVA_DEPLOY_TOKEN", "segredo-de-teste")
+    monkeypatch.setenv("APP_COMMIT", "abc123")
+    assert client.get("/internal/deploy").status_code == 401
+    assert client.get("/internal/deploy", headers={"X-Deploy-Token": "errado"}).status_code == 401
+    ok = client.get("/internal/deploy", headers={"X-Deploy-Token": "segredo-de-teste"})
+    assert ok.json() == {"commit": "abc123"}
+    assert "commit" not in client.get("/health").json()
