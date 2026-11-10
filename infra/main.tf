@@ -1,10 +1,10 @@
 terraform {
   required_version = ">= 1.6"
   required_providers {
-    aws = { source = "hashicorp/aws", version = "~> 5.0" }
+    aws    = { source = "hashicorp/aws", version = "~> 5.0" }
+    random = { source = "hashicorp/random", version = "~> 3.6" }
   }
-  # State LOCAL (arquivo terraform.tfstate fica fora do Git via .gitignore).
-  # Learner Lab: guarde o state só na sua máquina e não apague a pasta antes do fim da correção.
+  # State fora do Git (.gitignore). Aqui ele fica no AWS CloudShell, onde o apply roda.
 }
 
 provider "aws" {
@@ -61,9 +61,9 @@ resource "aws_instance" "app" {
   instance_type          = var.instance_type
   subnet_id              = data.aws_subnets.default.ids[0]
   vpc_security_group_ids = [aws_security_group.app.id]
-  # Opcional: o deploy por pull nao precisa de permissao na AWS.
-  # No Learner Lab, informe "LabInstanceProfile".
-  iam_instance_profile = var.instance_profile_name == "" ? null : var.instance_profile_name
+  # Role propria com permissao minima (so le o token de deploy no SSM).
+  # No Learner Lab, informe instance_profile_name = "LabInstanceProfile".
+  iam_instance_profile = var.instance_profile_name == "" ? aws_iam_instance_profile.ec2.name : var.instance_profile_name
 
   metadata_options {
     http_tokens = "required" # IMDSv2
@@ -74,7 +74,12 @@ resource "aws_instance" "app" {
     encrypted   = true
   }
 
-  user_data = templatefile("${path.module}/user_data.sh.tftpl", { image = var.image })
+  user_data = templatefile("${path.module}/user_data.sh.tftpl", {
+    image       = var.image
+    region      = var.region
+    token_param = aws_ssm_parameter.deploy_token.name
+  })
+  user_data_replace_on_change = true
 
   tags = { Name = "luzviva-app", projeto = "gs-luzviva" }
 }
@@ -109,4 +114,53 @@ resource "aws_budgets_budget" "mensal" {
     notification_type          = "ACTUAL"
     subscriber_email_addresses = [var.budget_email]
   }
+}
+
+# ---------- Segredo de deploy ----------
+# Gerado aqui, guardado cifrado no SSM Parameter Store (KMS) e copiado para o
+# GitHub Secrets (DEPLOY_TOKEN). Nunca aparece no codigo nem na imagem.
+resource "random_password" "deploy_token" {
+  length  = 40
+  special = false
+}
+
+resource "aws_ssm_parameter" "deploy_token" {
+  name        = "/luzviva/deploy-token"
+  description = "Token que o pipeline usa para confirmar o deploy"
+  type        = "SecureString"
+  value       = random_password.deploy_token.result
+}
+
+# ---------- IAM: a EC2 so pode ler esse parametro ----------
+data "aws_iam_policy_document" "ec2_assume" {
+  statement {
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["ec2.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "ec2" {
+  name_prefix        = "luzviva-ec2-"
+  assume_role_policy = data.aws_iam_policy_document.ec2_assume.json
+}
+
+data "aws_iam_policy_document" "ler_token" {
+  statement {
+    actions   = ["ssm:GetParameter"]
+    resources = [aws_ssm_parameter.deploy_token.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "ler_token" {
+  name   = "ler-token-deploy"
+  role   = aws_iam_role.ec2.id
+  policy = data.aws_iam_policy_document.ler_token.json
+}
+
+resource "aws_iam_instance_profile" "ec2" {
+  name_prefix = "luzviva-ec2-"
+  role        = aws_iam_role.ec2.name
 }

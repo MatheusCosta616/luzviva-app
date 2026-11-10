@@ -72,7 +72,7 @@ O dashboard "LuzViva: 4 métricas de ouro" já vem provisionado.
 ## 3. Configurar o GitHub
 - **Variable** (Settings → Secrets and variables → Actions → Variables): `APP_URL` = `http://<app_ip>`.
 - **Environment** `production` (Settings → Environments), usado pelo job `deploy`.
-- **Secrets:** o pipeline usa só o `GITHUB_TOKEN` efêmero que o GitHub injeta a cada execução. Nenhuma chave da AWS é cadastrada.
+- **Secrets:** `DEPLOY_TOKEN`, gerado pelo Terraform (`terraform output -raw deploy_token`) e guardado cifrado no SSM Parameter Store. O job `deploy` usa esse token para consultar `/internal/deploy` e confirmar o commit no ar. O `GITHUB_TOKEN` efêmero publica a imagem no GHCR. Nenhuma chave da AWS é cadastrada no GitHub.
 - O pacote no GHCR precisa ser **público** (Perfil → Packages → luzviva-app → Package settings → Change visibility) para a EC2 baixar sem credencial.
 - Recomendado: ruleset na `main` exigindo o check `ci-ok`.
 
